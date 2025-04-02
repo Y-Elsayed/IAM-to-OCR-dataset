@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-from utils import save_image, load_image
+from utils import load_image
 
 def detect_horizontal_lines(image, min_line_length=400):
     """Detect the horizontal lines using Hough Transform."""
