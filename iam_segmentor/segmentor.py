@@ -30,21 +30,21 @@ def split_form_into_sections(image_path):
 
     y1, y2 = lines[0], lines[1]
     height = image.shape[0]
-    top_crop = image[y1:y2]
+    computer_text_crop = image[y1:y2]
 
     if len(lines) >= 3:
         y3 = lines[2]
-        middle_crop = image[y2:y3]
+        handwritten_text_crop = image[y2:y3]
         bottom_crop = image[y3:height]
         line_coords = [y1, y2, y3]
     else:
-        middle_crop = image[y2:height]
+        handwritten_text_crop = image[y2:height]
         bottom_crop = None
         line_coords = [y1, y2]
 
     return {
-        "top": top_crop,
-        "middle": middle_crop,
+        "computer_written": computer_text_crop,
+        "hand_written": handwritten_text_crop,
         "bottom": bottom_crop,
         "lines": line_coords
     }
