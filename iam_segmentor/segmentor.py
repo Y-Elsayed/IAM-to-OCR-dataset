@@ -1,24 +1,93 @@
 import cv2
 import numpy as np
-from utils import load_image
+from .utils import load_image
 
-def detect_horizontal_lines(image, min_line_length=400):
-    """Detect the horizontal lines using Hough Transform."""
+def split_form_with_handwritten_bounding_box(image_path, word_lines):
+    """
+    Use handwritten word bounding boxes to extract:
+    - computer_written: region above the handwritten block
+    - hand_written: region from top of handwriting to the bottom of the image
+    """
+    image = load_image(image_path)
+    height, width = image.shape[:2]
+
+    # Step 1: Parse bounding boxes from words.txt
+    boxes = []
+    for line in word_lines:
+        if line.startswith("#") or line.strip() == "":
+            continue
+        parts = line.strip().split()
+        if len(parts) < 9 or parts[1] != "ok":
+            continue
+        x, y, w, h = map(int, parts[3:7])
+        boxes.append((y, y + h))
+
+    if not boxes:
+        raise ValueError("No valid handwritten word bounding boxes found.")
+
+    # Step 2: Define split point with top margin
+    hand_top_y = max(0, min(y1 for y1, _ in boxes) - 20)
+
+    # Step 3: Crop
+    computer_written = image[0:hand_top_y, :]
+    hand_written = image[hand_top_y:, :]
+
+    return {
+        "computer_written": computer_written,
+        "hand_written": hand_written,
+        "lines": [hand_top_y]
+    }
+
+
+
+def detect_horizontal_lines(image, debug=False):
+    """
+    Try to detect horizontal form lines.
+    If detection fails, fall back to estimated line positions.
+    """
+    img_height, img_width = image.shape[:2]
+    debug_image = image.copy()
+
+    # Convert to grayscale and threshold
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    edges = cv2.Canny(gray, 50, 150, apertureSize=3)
+    _, thresh = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY_INV)
 
-    lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold=100,
-                            minLineLength=min_line_length, maxLineGap=20)
+    # Morphological filtering to highlight horizontal lines
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (img_width // 2, 1))
+    morph = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
 
+    contours, _ = cv2.findContours(morph, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     horizontal_lines = []
-    if lines is not None:
-        for line in lines:
-            x1, y1, x2, y2 = line[0]
-            if abs(y1 - y2) < 10:  # horizontal
-                horizontal_lines.append((y1 + y2) // 2)
 
-    horizontal_lines = sorted(list(set(horizontal_lines))) # Remove duplicates and sort to have them in order from top to bottom
+    for cnt in contours:
+        x, y, w, h = cv2.boundingRect(cnt)
+        if w > 0.4 * img_width and h < 10:
+            horizontal_lines.append(y)
+            if debug:
+                cv2.line(debug_image, (0, y), (img_width, y), (0, 0, 255), 2)
+
+    horizontal_lines = sorted(list(set(horizontal_lines)))
+
+    # If failed, fallback to estimated positions
+    if len(horizontal_lines) < 2:
+        print("[WARNING] Failed to detect horizontal lines. Falling back to estimated positions.")
+        est_y1 = int(img_height * 0.08)
+        est_y2 = int(img_height * 0.19)
+        est_y3 = int(img_height * 0.75)
+        horizontal_lines = [est_y1, est_y2, est_y3]
+        if debug:
+            print(f"[WARNING] Fallback to estimated lines: {horizontal_lines}")
+            for y in horizontal_lines:
+                cv2.line(debug_image, (0, y), (img_width, y), (0, 255, 255), 2)  # Yellow fallback
+
+    if debug:
+        cv2.imwrite("outputs/debug_lines_fallback.png", debug_image)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+
     return horizontal_lines[:3]
+
+
 
 def split_form_into_sections(image_path):
     """Split image into label (computer-written), middle (handwriting), and bottom sections (name)."""
