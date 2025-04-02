@@ -22,7 +22,7 @@ def detect_horizontal_lines(image, min_line_length=400):
 
 def split_form_into_sections(image_path):
     """Split image into label (computer-written), middle (handwriting), and bottom sections (name)."""
-    image = cv2.imread(image_path)
+    image = load_image(image_path)
     lines = detect_horizontal_lines(image)
 
     if len(lines) < 2:  # at least 2 lines needed
