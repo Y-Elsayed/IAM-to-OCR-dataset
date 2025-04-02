@@ -25,19 +25,26 @@ def split_form_into_sections(image_path):
     image = cv2.imread(image_path)
     lines = detect_horizontal_lines(image)
 
-    if len(lines) < 3:
-        raise ValueError("Could not detect 3 horizontal lines.")
+    if len(lines) < 2:  # at least 2 lines needed
+        raise ValueError("Could not detect at least 2 horizontal lines.")
 
-    y1, y2, y3 = lines
+    y1, y2 = lines[0], lines[1]
     height = image.shape[0]
-
     top_crop = image[y1:y2]
-    middle_crop = image[y2:y3]
-    bottom_crop = image[y3:height]
+
+    if len(lines) >= 3:
+        y3 = lines[2]
+        middle_crop = image[y2:y3]
+        bottom_crop = image[y3:height]
+        line_coords = [y1, y2, y3]
+    else:
+        middle_crop = image[y2:height]
+        bottom_crop = None
+        line_coords = [y1, y2]
 
     return {
         "top": top_crop,
         "middle": middle_crop,
         "bottom": bottom_crop,
-        "lines": [y1, y2, y3]
+        "lines": line_coords
     }
